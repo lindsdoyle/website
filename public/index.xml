@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Website</title>
+    <link>/</link>
+    <description>Recent content on Website</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-US</language>
+    <lastBuildDate>Fri, 07 May 2021 00:00:00 +0000</lastBuildDate><atom:link href="/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Python and R: A Happy Pairing</title>
+      <link>/post/2021/05/07/python-and-r-a-happy-pairing/</link>
+      <pubDate>Fri, 07 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>/post/2021/05/07/python-and-r-a-happy-pairing/</guid>
+      <description>Link to project 1
+Link to google</description>
+    </item>
+    
+    <item>
+      <title>Project 1: Exploratory Data Analysis</title>
+      <link>/project/project1/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>/project/project1/</guid>
+      <description>0. Introduction (5 pts) The datasets that are used in this project compare Gonorrhea and Chlamydia rates in Texas counties from 2014-2018. These datasets also include the population of each county and STD rates are a composition of all races and age groups. I accessed this data from the Texas Department of State Health Services (dshs.texas.gov). I chose this data because I am interested in infectious diseases and STDs are some of the most widely studied.</description>
+    </item>
+    
+    <item>
+      <title>Project 2: Modeling, Testing, and Predicting</title>
+      <link>/project/project2/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>/project/project2/</guid>
+      <description>Modeling Lindsey Doyle LND642 - 0. Introduction
+The dataset that is used for this project aims to look at how different explanatory variables influence the distance of the college a student chooses to attend from their hometown.The survey is collected on students in 1980 from approximately 1,100 high schools and was conducted by the U.S. Department of Education.There are 4739 observations of 15 variables in the dataset. The variables is 4-year college distance from home,gender, ethnicity, composite test score, level of education of both parents (mcollege and fcollege), whether or not the family owns a home (home) and where the home is located (urban), the unemployment rate and state hourly wage for the county, the average state 4 year tuition, the individual’s number of years in education, family income, and region.</description>
+    </item>
+    
+    <item>
+      <title>Projects</title>
+      <link>/projects/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>/projects/</guid>
+      <description> Check out some of my coding projects below:
+ Wrangling &amp;amp; Exploratory Data Analysis
+ Modeling, Inference, Prediction
+  -- </description>
+    </item>
+    
+    <item>
+      <title>Resume</title>
+      <link>/resume/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>/resume/</guid>
+      <description>    </description>
+    </item>
+    
+  </channel>
+</rss>

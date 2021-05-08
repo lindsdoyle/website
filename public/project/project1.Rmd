@@ -1,0 +1,162 @@
+---
+title: 'Project 1: Exploratory Data Analysis'
+author: "Lindsey Doyle LND642"
+date: '04/04/2021'
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+  pdf_document:
+    toc: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+
+    
+
+
+#### 0. Introduction (5  pts)
+***The datasets that are used in this project compare Gonorrhea and Chlamydia rates in Texas counties from 2014-2018. These datasets also include the population of each county and STD rates are a composition of all races and age groups. I accessed this data from the Texas Department of State Health Services (dshs.texas.gov). I chose this data because I am interested in infectious diseases and STDs are some of the most widely studied. Through this project, I aim to see if a higher population size amounts to higher rates of Chlamydia and Gonorrhea.***
+
+#### 1. Tidying: Rearranging Wide/Long (10 pts)
+**Used in heatmap!**
+
+#### 2. Joining/Merging (10 pts)
+```{R}
+library(dplyr)
+library(readr)
+chlamydia <- read_csv("C2.csv")
+chlamydia.renamed <- chlamydia %>% 
+  rename(
+    Chlamydia.Cases = Cases,
+    Chlamydia.Rate = Rate
+    )
+library(tidyverse)
+chlamydia.comp <- na.omit(chlamydia.renamed)
+Gonorrhea <- read_csv("G2.csv")
+Gonorrhea.renamed <- Gonorrhea %>% 
+  rename(
+    Gonorrhea.Cases = Cases,
+    Gonorrhea.Rate = Rate
+    )
+Gonorrhea.comp <- na.omit(Gonorrhea.renamed)
+
+STD<- left_join(chlamydia.comp, Gonorrhea.comp, by = "Area Year")
+STD.clean <- na.omit(STD) 
+STD.comp <- STD.clean[ -c(7,8) ]
+STDs <- STD.comp %>% rename(
+   Area = Area.x,
+    Year = Year.x
+    )
+
+```
+
+**Counties that did not have recorded Gonorrhea and Chlamydia cases were omitted before joining. The left join function was used to join the datasets by "area year" so that each county had both Chlamydia and Gonorrhea data. After joining the data, I omitted all counties that did not have STD data. This drop could cause summarizing data to not take into account counties without STD rates. I also renamed the area and year columns and  deleted the extra area and year columns.**
+
+
+#### 3. Wrangling (40 pts)
+```{R}
+#Gives Chlamydia and Gonorrhea percent data
+Chlam_PCT<-STDs%>%mutate(Chlam_PCT=Chlamydia.Cases/Population*100)
+STD_PCT <- Chlam_PCT %>% mutate(Gon_PCT = Gonorrhea.Cases/Population*100)
+Tot_STD <- STD_PCT %>% mutate(Tot_STD = Chlamydia.Cases + Gonorrhea.Cases)
+Tot_STD <- Tot_STD %>% mutate(Tot_STD.pct = Tot_STD / Population*100)
+Tot_STD%>%filter(Population>50000)%>%group_by(Tot_STD, Tot_STD.pct)%>% arrange(-Year)
+Mean.tot<- Tot_STD %>%group_by(Population>50000)%>%summarize(mean.tot=mean(Tot_STD.pct,na.rm=T))
+#If the population is greater than 50,000, the gonorrhea and chlamydia mean percentage is 0.588% and when the population is less than 50,000 it is 0.49%.
+
+#Group by Poplation and summary data for gonorrhea cases in population
+Gon_sum <- Tot_STD %>% group_by (Population > 50000) %>% 
+    summarize(gon_mean = mean(Gonorrhea.Cases, na.rm = T), 
+        gon_sd = sd(Gonorrhea.Cases, na.rm = T))
+#Group by Population and summary data for chlamydia rate in population
+Chlam_sum <- Tot_STD %>% group_by (Population > 50000) %>% 
+    summarize(chlam_mean = mean(Chlamydia.Cases, na.rm = T), 
+        chlam_sd = sd(Chlamydia.Cases, na.rm = T))
+
+#Summary of Chlamydia rate
+Chlam_rate <- Tot_STD %>% group_by (Population > 50000) %>% 
+    summarize(chlam_max = max(Chlamydia.Rate, na.rm = T), 
+        chlam_min = min(Chlamydia.Rate, na.rm = T), 
+       chlam_median = median(Chlamydia.Rate, na.rm = T),
+       cham_mean = mean(Chlamydia.Rate, na.rm = T),
+       cham_sd = sd(Chlamydia.Rate, na.rm = T))
+
+
+#Summary of Gonorrhea rate
+Gon_rate <- Tot_STD %>% group_by (Population > 50000) %>% 
+    summarize(Gon_max = max(Gonorrhea.Rate, na.rm = T), 
+        Gon_min = min(Gonorrhea.Rate, na.rm = T), 
+       Gon_median = median(Gonorrhea.Rate, na.rm = T),
+       Gon_mean = mean(Gonorrhea.Rate, na.rm = T),
+       Gon_sd = sd(Gonorrhea.Rate, na.rm = T))
+
+STDs %>% summarize(STDs, mean(Chlamydia.Cases)) 
+STDs%>%summarize_all(n_distinct)
+STDs %>% group_by(Area) %>% summarize(max_Chlamydia.Cases=max(Chlamydia.Cases)) %>%arrange(-max_Chlamydia.Cases)
+STDs %>% group_by(Area) %>% summarize(max_Gonorrhea.Cases=max(Gonorrhea.Cases)) %>%arrange(-max_Gonorrhea.Cases)
+```
+**Harris county had the most gonorrhea and chlamydia cases of all the counties, which is not surprising because it is the largest county in Texas and the county that emcompasses Houston. If the population is greater than 50,000, the gonorrhea and chlamydia mean percentage is 0.588% and when the population is less than 50,000 it is 0.49%. This statistic was found by creating a new variable that added all the cases of gonorrhea and chlamydia together and dividing by the population. Individually, the gonorrhea rate for a population greater than 50,000 has a max of 544.1 per 100,000 individual, and mean of 133.11 with standard deviation of 90.17. For a population of less than 50,000, the max gonorrhea rate is 2286.0 per 100,000 individuals, and the mean is 105.39 with a standard deviation of 143.72. This is interesting because while the max of the population less than 50,000 is higher than that of a population larger than 50,000, the mean for the population greater than 50,000 was higher.**
+
+
+#### 4. Visualizing (30 pts)
+```{R}
+#Heatmap
+STDs %>% select_if(is.numeric)%>% cor(use = "everything")%>% as.data.frame()%>% rownames_to_column()%>% pivot_longer(-1)%>% ggplot(aes(rowname,name,fill=value))+ 
+   geom_tile()+geom_text(aes(label=round(value,2)))+
+   xlab("")+ylab("")+coord_fixed()+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ scale_fill_gradient2(low = "Purple", high = "Pink")
+```
+**The graph above shows that there is a correlation between Gonorrhea rate and Chlamydia rate within a population. This is shown by an r-value of 0.87. There is also a strong correlation between how many STD cases there are and the population. This is shown by a r-vale of 0.98 for Chlamydia cases and population and 0.96 for Gonorrhea cases and the population. There is reason to believe that as the population rises, so will the STD cases.**
+
+```{R}
+ggplot(STDs, aes(x = Chlamydia.Cases, y = Population, fill=Chlamydia.Rate,stat="summary"))+ #I wasn't sure how to change the scale for the fill
+geom_point(stat="summary", position="dodge")+
+    geom_smooth(method=lm, se=FALSE, linetype="dashed",
+             color="pink")+
+  coord_flip()+theme_classic()+labs(x="Chlamydia.Cases",y="Population")+ggtitle("Chlamydia Cases by Population") +scale_y_continuous(lim=c(0,150000))
+
+```
+**This plot shows Chlamydia cases plotted by population. It shows that as the population goes up, so does the number of chlamydia cases. It also shows that while the cases go up, the Chlamydia rate (which describes how many cases there should be for 100,000 for a specific population) stays relatively the same. This may indicate there is not too much of a difference between areas if they were all the same population. This plot is also set to scale to be the populations at or below the mean.**
+```{R}
+ggplot(STDs, aes(x = Gonorrhea.Cases, y = Population, fill=Gonorrhea.Rate,stat="summary"))+ #I wasn't sure how to change the scale for the fill
+geom_point(stat="summary", position="dodge")+
+    geom_smooth(method=lm, se=FALSE, linetype="dashed",
+             color="purple")+
+  coord_flip()+theme_classic()+labs(x="Chlamydia.Cases",y="Population")+ggtitle("Gonorrhea Cases by Population")+scale_y_continuous()
+```
+**This plot shows Gonorrhea cases plotted by population. Similar to the plot depicting Chlamydia cases,it also shows that as the population goes up, so does the number of Gonorrhea cases. It also shows that while the cases go up, the rate stays relatively the same. This may indicate there is not too much of a difference between areas if they were all the same population.**
+
+    
+#### 5. Dimensionality Reduction (30 pts) 
+
+- Either k-means/PAM clustering or PCA (inclusive "or") should be performed on at least three of your variables (3 is just the minimum: using more/all of them will make this much more interesting!)
+
+    - All relevant steps discussed in class (e.g., picking number of PCs/clusters)
+    - A visualization of the clusters or the first few principal components (using ggplot2)
+    - Supporting paragraph or two describing results found, interpreting the clusters/PCs in terms of the original variables and observations, discussing goodness of fit or variance explained, etc.
+
+
+
+```{r eval=F}
+## paste this chunk into the ```{r setup} chunk at the top of your project 1 .Rmd file
+
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+
+
+```{R eval=F}
+data(package = .packages(all.available = TRUE))
+```
+
+...
+
+
+
+
+

@@ -1,0 +1,244 @@
+---
+title: 'Project 2: Modeling, Testing, and Predicting'
+author: "SDS348"
+date: ''
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE,fig.align="center",warning=FALSE,message=FALSE,fig.width=8, fig.height=5, linewidth=60)
+options(tibble.width = 100,width = 100)
+library(tidyverse)
+library(lmtest)
+library(sandwich)
+library(dplyr)
+library(rstatix)
+class_diag<-function(probs,truth){
+  
+  tab<-table(factor(probs>.5,levels=c("FALSE","TRUE")),truth)
+  acc=sum(diag(tab))/sum(tab)
+  sens=tab[2,2]/colSums(tab)[2]
+  spec=tab[1,1]/colSums(tab)[1]
+  ppv=tab[2,2]/rowSums(tab)[2]
+
+  if(is.numeric(truth)==FALSE & is.logical(truth)==FALSE) truth<-as.numeric(truth)-1
+  
+  #CALCULATE EXACT AUC
+  ord<-order(probs, decreasing=TRUE)
+  probs <- probs[ord]; truth <- truth[ord]
+  
+  TPR=cumsum(truth)/max(1,sum(truth)) 
+  FPR=cumsum(!truth)/max(1,sum(!truth))
+  
+  dup<-c(probs[-1]>=probs[-length(probs)], FALSE)
+  TPR<-c(0,TPR[!dup],1); FPR<-c(0,FPR[!dup],1)
+  
+  n <- length(TPR)
+  auc<- sum( ((TPR[-1]+TPR[-n])/2) * (FPR[-1]-FPR[-n]) )
+
+  data.frame(acc,sens,spec,ppv,auc)
+}
+```
+
+# Modeling
+**Lindsey Doyle LND642**
+- **0. Introduction** 
+
+**The dataset that is used for this project aims to look at how different explanatory variables influence the distance of the college a student chooses to attend from their hometown.The survey is collected on students in 1980 from approximately 1,100 high schools and was conducted by the U.S. Department of Education.There are 4739 observations of 15 variables in the dataset. The variables is 4-year college distance from home,gender, ethnicity, composite test score, level of education of both parents (mcollege and fcollege), whether or not the family owns a home (home) and where the home is located (urban), the unemployment rate and state hourly wage for the county, the average state 4 year tuition, the individual's number of years in education, family income, and region.**
+**Citation: Kleiber, Christian. “College Distance Data.” Rdrr.io, 6 Feb. 2020, rdrr.io/cran/AER/man/CollegeDistance.html. Accessed 28 Apr. 2021.**
+
+```{r}
+CollegeDistance <- read.csv("~/CollegeDistance (1).csv") 
+```
+
+- **1. MANOVA & ANOVA** 
+```{r}
+group<-CollegeDistance$income
+DV <- CollegeDistance %>% select(score, education, unemp)
+sapply(split(DV,group), mshapiro_test)
+box_m(DV,group)
+man1<-manova(cbind(score, education, unemp)~income, data=CollegeDistance)
+summary(man1)
+summary.aov(man1)
+CollegeDistance%>%group_by(income)%>%summarize(mean(score),mean(education), mean(unemp))
+pairwise.t.test(CollegeDistance$score,CollegeDistance$education,CollegeDistance$unemp, p.adj="none")
+
+1-.95^6
+.05/6
+```
+
+**A MANOVA, an ANOVA, and 4 post-hoc tests were can for a total of 6. The probability of at least one type I error is 26.49% and the bonferroni correction is 0.008, meaning that it is still significant. All MANOVA assumptions were met because each group has over 25 subjects. There is a significant difference between low income and high income households for unemployement rate, assessment score, and education level.**  
+ 
+
+- **2. Randomization Test** 
+```{r}
+set.seed(1234)
+summary(aov(education~gender, data=CollegeDistance))
+OBS_F <-0.452
+Fs <- replicate(5000,{
+  new <- CollegeDistance%>%mutate(education=sample(education))
+  SSW <- new%>%group_by(gender)%>%summarize(SSW=sum((education-mean(education))^2))%>%summarize(sum(SSW))%>%pull
+  SSB <- new%>%mutate(mean=mean(education))%>%group_by(gender)%>%mutate(groupmean=mean(education))%>%summarize(SSB=sum((mean-groupmean)^2))%>%summarize(sum(SSB))%>%pull
+  (SSB/1)/(SSW/4737)
+})
+
+hist(Fs, probs=T); abline(v= OBS_F, col="orange", add=T)
+mean(Fs>OBS_F)
+```
+**The null hypothesis is that there is no difference between education levels between genders. The alternative hypothesis is that there is a difference between education levels between genders. The p-value is 0.5004, which means I accept the null hypothesis.**
+
+- **3. Linear Regression Model** Build a linear regression model predicting one of your response variables from at least 2 other variables, including their interaction. Mean-center any numeric variables involved in the interaction.
+```{r}
+CollegeDistance$distance_c <- CollegeDistance$distance - mean(CollegeDistance$distance)
+CollegeDistance$score_c <- CollegeDistance$score - mean(CollegeDistance$score)
+fit <- lm(distance_c~score_c*urban, data=CollegeDistance)
+summary(fit)
+```
+**The linear regression was run after centering the assessment scores and distance from 4 year college.The odds of the distance of a 4-year college from a student's home decreases by 0.033 per point on the assessment, decreases by 1.583 if the student is from an urban area, and increases by 0.034 if the student is from an urban area and took the assessment test.**
+
+```{r}
+ggplot(CollegeDistance, aes(x=distance_c, y=score_c))+geom_point(aes(color=urban))+  geom_smooth(method="lm",se=F,fullrange=T,aes(color=urban))+theme(legend.position=c(.9,.19))
+```
+
+ 
+```{r}
+resids<-fit$residuals
+fitvals<-fit$fitted.values
+ggplot()+geom_point(aes(fitvals,resids))+geom_hline(yintercept=0, color='red')
+ks.test(resids, "pnorm", mean=0, sd(resids)) 
+(sum((CollegeDistance$distance_c-mean(CollegeDistance$distance_c))^2)-sum(fit$residuals^2))/sum((CollegeDistance$distance_c)^2)
+
+bptest(fit)
+
+coeftest(fit, vcov = vcovHC(fit))[,1:2]
+summary(fit)$coef[,1:2]
+
+```
+  **The model explains 9.54% of the variation in the outcome. The model also does not pass the all of the assumptions. The model does not have a normal distribution, it is not homoskedastic, and the relationship is not linear. There is also no significant standard errors for either the original or robust versions. The original and robust errors are relatively unchanged from one another ** 
+
+- **4.Bootstrapped** 
+```{r}
+set.seed(1234)
+samp_distn<-replicate(5000, {
+boot <- sample_frac(CollegeDistance, replace=TRUE) 
+fit <-lm(distance_c~score_c*urban, data= boot)  
+coef(fit) #save coefs
+})
+
+samp_distn %>% t %>% as.data.frame %>% summarize_all(sd)
+coeftest(fit, vcov = vcovHC(fit))[,1:2]
+summary(fit)$coef[,1:2]
+
+samp_distn %>% t %>% as.data.frame %>% pivot_longer(1:3) %>% group_by(name) %>% summarize(lower=quantile(value,.025), upper=quantile(value,.975))
+
+
+```
+**The bootstrapped standard errors did not significantly change compared to the originial. None were significant. **
+- **5. Logistic Regression Model**  
+```{r}
+#Predicting income from distance of college from home and score
+fit <- glm(income~distance+score, data=CollegeDistance, family = "binomial")
+prob <- predict(fit, type = "response")
+class_diag(prob,CollegeDistance$income)
+truth <- CollegeDistance$income
+table(prediction = as.numeric(prob > 0.5), truth)
+summary(fit)
+
+CollegeDistance$logit <-predict(fit)
+ggplot(CollegeDistance,aes(logit, fill=income))+geom_density(alpha=.4)
+
+
+library(plotROC)
+ROCplot <- ggplot(CollegeDistance) + geom_roc(aes(d=income, m=prob), n.cuts=0)
+ROCplot
+calc_auc(ROCplot)
+```
+**The log of odds of having low income goes up by 0.079 per 10 miles from a 4-year college and decreases by 0.045 per point on the achievement test. The accuracy of the data is 0.713, sensitivity is 0.999, specificity is 0.007, precision is 0.713, and auc is 0.622. The AUC indicates that the model is poor.** 
+    
+
+- **6. Logistic Regression for All Variables** 
+```{r}
+fit <- glm(income~., data=CollegeDistance, family = "binomial")
+prob <- predict(fit, type = "response")
+class_diag(prob, CollegeDistance$income)
+truth <- CollegeDistance$income
+table(prediction = as.numeric(prob > 0.5), truth)
+```
+```{r}
+set.seed(1234)
+k=10
+data<-CollegeDistance[sample(nrow(CollegeDistance)),] #randomly order 
+rowsfolds<-cut(seq(1:nrow(CollegeDistance)),breaks=k,labels=F) #create folds
+
+diags<-NULL
+for(i in 1:k){
+   train<-data[rowsfolds!=i,]   
+   test<-data[rowsfolds==i,]  
+   truth<-test$income
+   fit1<-glm(income~.,data=train,family="binomial")
+   probs1<-predict(fit1,newdata = test,type="response")
+   diags<-rbind(diags,class_diag(probs1,truth))
+}
+summarize_all(diags,mean)
+```
+**The accuracy is 0.765, sensitivity is 0.921, specificity is 0.380, precision is 0.786, and auc is 0.746.The classification diagnostic variables were all relatively the same as the previous models. The AUC indicates that the model is a fair fit for the data.**
+```{r}
+library(glmnet)
+set.seed(1234)
+y<-as.matrix(CollegeDistance$income) #grab response
+x<-model.matrix(income~.,data=CollegeDistance)[,-1] #grab predictors
+cv<-cv.glmnet(x,y,family="binomial")
+lasso<-glmnet(x,y,family="binomial",lambda=cv$lambda.1se)
+coef(lasso)
+probs2<-predict(lasso,x,type="response")
+class_diag(probs2, CollegeDistance$income)
+table(prediction = as.numeric(probs2 > 0.5), CollegeDistance$income)
+```
+**The retained variables after LASSO were gender, ethnicity, fcollege, mcollege, home, urban, unemployment, wage, distance, and education.**
+
+```{r}
+set.seed(1234)
+k=10
+data<-CollegeDistance[sample(nrow(CollegeDistance)),] #randomly order 
+rowsfolds<-cut(seq(1:nrow(CollegeDistance)),breaks=k,labels=F) #create folds
+
+diags<-NULL
+for(i in 1:k){
+   train<-data[rowsfolds!=i,]   
+   test<-data[rowsfolds==i,]  
+   truth<-test$income
+   fit1<-glm(income~gender+ethnicity+fcollege+mcollege+home+urban+unemp+wage+distance+education,data=train,family="binomial")
+   probs1<-predict(fit1,newdata = test,type="response")
+   diags<-rbind(diags,class_diag(probs1,truth))
+}
+summarize_all(diags,mean)
+```
+**The accuracy is 0.764, sensitivity is 0.921, specificity is 0.376, precision is 0.785, and auc is 0.746.The classification diagnostic variables were all relatively the same as the previous models. The AUC indicates that the model is a fair fit for the data.** 
+   
+
+
+
+...
+
+
+
+
+
